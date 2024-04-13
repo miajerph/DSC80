@@ -74,7 +74,7 @@ def lateness_penalty(col):
         else: 
             return 0.4
         
-    return datestrings.apply(to_multiplier)
+    return col.apply(to_multiplier)
 
 
 # ---------------------------------------------------------------------
@@ -103,11 +103,11 @@ def process_labs(grades):
 
 
 def lab_total(processed):
-    num_labs = len(df.columns)
-    df['sum'] = df.sum(axis=1)
-    df['min_values'] = df.min(axis=1)
-    df['avgs'] = (df['sum'] - df['min_values']) / (num_labs-1)
-    return df['avgs']
+    num_labs = len(processed.columns)
+    processed['sum'] = processed.sum(axis=1)
+    processed['min_values'] = processed.min(axis=1)
+    processed['avgs'] = (processed['sum'] - processed['min_values']) / (num_labs-1)
+    return processed['avgs']
 
 
 # ---------------------------------------------------------------------
@@ -139,11 +139,11 @@ def total_points(grades):
 
 
 def final_grades(total):
-    letter_grades = pd.cut(total_points, bins=[-float("inf"), 0.6, 0.7, 0.8, 0.9, float("inf")], labels=['F', 'D', 'C', 'B', 'A'], right=False)
+    letter_grades = pd.cut(total, bins=[-float("inf"), 0.6, 0.7, 0.8, 0.9, float("inf")], labels=['F', 'D', 'C', 'B', 'A'], right=False)
     return letter_grades
 
 def letter_proportions(total):
-    final_grades = final_grades(total_points)
+    final_grades = final_grades(total)
     letter_counts = final_grades.value_counts(normalize=True)
     return letter_counts
 
