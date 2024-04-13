@@ -62,6 +62,7 @@ def projects_total(grades):
 
 
 def lateness_penalty(col):
+    import datetime
     def to_multiplier(datestring):
         hours, minutes, seconds = map(int, datestring.split(':'))
         duration = datetime.timedelta(hours=hours, minutes=minutes, seconds=seconds)
