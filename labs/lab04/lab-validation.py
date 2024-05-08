@@ -90,16 +90,6 @@ q7_test_colors = [x[0] for x in q7_out]
 if 'q7' in questions or questions == [] or 'all' in questions:
     print(grader.check("q7"))
 
-permtest(skittles)
-
-skittles.groupby('Factory').sum().apply(lambda r: r / r.sum(), axis = 1)
-
-skittles.groupby('Factory').sum().sum(axis=1)
-
-tvd(skittles)
-
-skittles.groupby('Factory').sum()
-
 # don't change this cell -- it is needed for the tests to work
 q8_out = same_color_distribution()
 
