@@ -62,7 +62,7 @@ def count_frequency(login):
 # ---------------------------------------------------------------------
 
 def cookies_null_hypothesis():
-    return [1, 2]
+    return [2]
     
                          
 def cookies_p_value(N):
@@ -91,7 +91,7 @@ def car_test_statistic():
     return [1, 4]
 
 def car_p_value():
-    return 1
+    return 4
 
 
 # ---------------------------------------------------------------------
@@ -109,34 +109,44 @@ def bhbe_col(heroes):
     return bhbe
     
 def superheroes_observed_statistic(heroes):
-    return test_statistic(heroes)
-
-def test_statistic(df):
-    indices = np.where(bhbe_col(df))
-    bb = df.iloc[indices] 
-    good_b = (bb['Alignment'] == 'good').sum() 
-    num_bb = bhbe_col(df).sum()
+    indices = np.where(bhbe_col(heroes))
+    bb = heroes.iloc[indices] # finds rows of blond hair, blue eyes
+    good_b = (bb['Alignment'] == 'good').sum() # num of good, blond hair, blue eyes
+    num_bb = bhbe_col(heroes).sum()
     if good_b == 0 or num_bb == 0:
         stat = 0
     else:
         stat = good_b / num_bb # proportion of good / total blond hair, blue eyes
     return stat
-
-def simulate_bhbe_null(heroes, N):
-    test_statistics = [trials(heroes) for i in range(N)]
-    return np.array(test_statistics)
     
-def trials(heroes):
-    sample_indices = np.random.choice(len(heroes), size=(len(heroes)), replace=True)
-    sample_array = heroes.iloc[sample_indices]
-    test_statistics = test_stat(sample_array)
-    return test_statistics
+def simulate_bhbe_null(heroes, N):
+    good = (heroes['Alignment'] == 'good').sum() 
+    total_heroes = heroes.shape[0]
+    if ((good==0) or (total_heroes==0)): 
+        heroes_prop = 0
+    else:
+        heroes_prop = good / total_heroes
+
+    bhbe_size = bhbe_col(heroes).sum()
+    
+    test_statistics = [trial(heroes, heroes_prop, bhbe_size) for i in range(N)]
+    
+    return np.array(test_statistics)
+
+def trial(heroes, heroes_prop, bhbe_size):
+    sim = np.random.binomial(1, heroes_prop, bhbe_size)
+    return sim.mean()
     
 def superheroes_p_value(heroes):
     observed = superheroes_observed_statistic(heroes)
-    simulation = simulate_bhbe_null(heroes, 1000)
+    simulation = simulate_bhbe_null(heroes, 100000)
     p_value = np.mean(simulation >= observed)
-    return [p_value, 'Fail to reject']
+    if p_value >= 0.1:
+        conclusion = 'Fail to reject'
+    else:
+        conclusion = 'Reject'
+    return [p_value, conclusion]
+
 
 # ---------------------------------------------------------------------
 # QUESTION 6
@@ -145,21 +155,20 @@ def superheroes_p_value(heroes):
 
 def diff_of_means(data, col='orange'):
     df = data.copy()
-    df = df.groupby('Factory').mean()
-    return np.abs(df.loc['Waco']['orange'] - df.loc['Yorkville']['orange'])
+    df = df.groupby('Factory')[col].mean()
+    return np.abs(df.loc['Waco'] - df.loc['Yorkville'])
 
 
 def simulate_null(data, col='orange'):
     df = data.copy()
-    df.assign(Factory = np.random.permutation(df['Factory']))
+    df['Factory'] = np.random.permutation(df['Factory'])
     return diff_of_means(df, col)
 
 
 def color_p_value(data, col='orange'):
-    num_tests = 1000
-    observed = simulate_null(data)
-    tests = np.array([simulate_null(data) or 0 for i in range(num_tests)])
-    p_val = (np.abs(tests) >= np.abs(observed)).mean()
+    observed = diff_of_means(data)
+    tests = np.array([simulate_null(data) for i in range(1000)])
+    p_val = (tests >= observed).mean()
     return p_val
 
 
@@ -167,9 +176,18 @@ def color_p_value(data, col='orange'):
 # QUESTION 7
 # ---------------------------------------------------------------------
 
-
 def ordered_colors():
-    return [('yellow', 0.005), ('red', 0.044), ('green', 0.224), ('purple', 0.451), ('orange', 0.98)]
+  return [('yellow', 0.000), ('red', 0.044), ('green', 0.224), ('purple', 0.451), ('orange', 0.98)]
+
+  
+# def ordered_colors():
+    # return [('yellow', 0.000), ('red', 0.041), ('green', 0.043), ('orange', 0.044), ('purple', 0.046)]
+    
+# def ordered_colors():
+    # return [('yellow', 0.000), ('green', 0.224), ('red', 0.044), ('purple', 0.451), ('orange', 0.98)]
+    
+# def ordered_colors():
+    # return [('yellow', 0.000), ('red', 0.044), ('green', 0.224), ('purple', 0.451), ('orange', 0.98)]
 
 
 # ---------------------------------s------------------------------------

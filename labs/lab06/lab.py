@@ -7,6 +7,7 @@ import numpy as np
 import requests
 import bs4
 import lxml
+from bs4 import BeautifulSoup
 
 
 # ---------------------------------------------------------------------
@@ -32,55 +33,73 @@ def question1():
 # ---------------------------------------------------------------------
 
 
-from bs4 import BeautifulSoup
 
 def extract_book_links(text):
-    soup = BeautifulSoup(text, 'lxml')
+    # parse html
+    soup = bs4.BeautifulSoup(text, features="lxml")
+    
+    # Find all articles with class "product_pod"
     books = soup.find_all('article', class_='product_pod')
-    urls = []
+    
+    # list to store the URLs
+    book_urls = []
+    
+#     price_check = []
+    # iterate through each book
     for book in books:
-        rating = book.find('p', class_='star-rating')['class'][1]
-        price = book.find('p', class_='price_color').get_text()
-        price = float(price[2:])
-
-        if rating in ['Four','Five'] and price < 50:
-            link = book.find('div', class_='image_container').find('a')['href']
-            urls.append(link)
+        # Find the star-rating element
+        star_rating = book.find('p', class_='star-rating')
         
-    return urls
+        # find price
+        price = book.find('p', class_='price_color').get_text()
+        # get rid of pound sign
+        price = price[2:]
+        price = float(price)
+        
+        
+        # check star rating and price
+#         if star_rating and 'Four' in star_rating['class'] and price < 50:
+        if star_rating and price < 50:
+            if 'Five' in star_rating['class'] or 'Four' in star_rating['class']:
+                link = book.find('div', class_='image_container').find('a')['href']
+                # append url to list
+                book_urls.append(link)
+    
+    return book_urls
+
 
 def get_product_info(text, categories):
     keys = ['UPC', 'Product Type', 'Price (excl. tax)', 'Price (incl. tax)', 'Tax', 'Availability', 'Number of reviews', 'Category', 'Rating', 'Description', 'Title']
-    soup = BeautifulSoup(text, features="lxml")
+    info_soup = bs4.BeautifulSoup(text, features="lxml")
     categories = [x.lower() for x in categories]
 
-    this_cat = soup.find('ul', class_='breadcrumb').find_all('a')[-1].text
-    if this_cat.lower() not in categories: return None
+    cat = info_soup.find('ul', class_='breadcrumb')
+    cat = cat.find_all('a')[-1].text
+    if cat.lower() not in categories:
+        return None
 
-    first_seven = soup.find_all('td') # Get the first seven values for the dict
+    # now make the dictionary
+    first_seven = info_soup.find_all('td')
     values = [x.get_text() for x in first_seven]
-    
-    values.append(this_cat) # Add category to dictionary
-    
-    rating = soup.find('p', class_='star-rating')['class'][1]
-    values.append(rating)
-    
-    description = soup.find('meta', attrs={'name': 'description'})
+    values.append(cat)
+    rating = info_soup.find('p', class_='star-rating')
+    class_value = rating['class'][1]
+    values.append(class_value)
+    description = info_soup.find('meta', attrs={'name': 'description'})
     description = description['content'].strip()
-    values.append(description) 
-    
-    title = soup.find('title').get_text().strip().split('|')[0].strip()
+    values.append(description)
+    title = info_soup.find('title').get_text().strip()
+    title = title.split('|')
+    title = title[0].strip()
     values.append(title)
-    
     result = dict(zip(keys, values))
-    
     return result
 
 def scrape_books(k, categories):
     cols = ['UPC', 'Product Type', 'Price (excl. tax)', 'Price (incl. tax)', 'Tax', 'Availability', 'Number of reviews', 'Category', 'Rating', 'Description', 'Title']
     final = pd.DataFrame(columns=cols)
-    for i in range(1, k+1):
-        page = requests.get(f'http://books.toscrape.com/catalogue/page-{i}.html')
+    for i in range(1, k + 1):
+        page = requests.get(f"http://books.toscrape.com/catalogue/page-{i}.html")
         page_txt = page.text
         links = extract_book_links(page_txt)
         for book in links:
@@ -91,7 +110,6 @@ def scrape_books(k, categories):
             info_df = pd.DataFrame([info_dict])
             final = pd.concat([final, info_df])
     return final
-
     
 
 # ---------------------------------------------------------------------
@@ -113,8 +131,8 @@ def stock_history(ticker, year, month):
     return df
 
 def stock_stats(history):
-    open_pr = history.iloc[0]['open']
-    close_pr = history.iloc[-1]['close']
+    open_pr = history.iloc[-1]['open']
+    close_pr = history.iloc[0]['close']
     percent_change = ((close_pr - open_pr) / open_pr) * 100
 
     total_vol = 0
@@ -133,9 +151,6 @@ def stock_stats(history):
 # ---------------------------------------------------------------------
 # QUESTION 4
 # ---------------------------------------------------------------------
-
-
-from datetime import datetime
 
 def format_url(code):
     url = f'https://hacker-news.firebaseio.com/v0/item/{code}.json'
@@ -163,6 +178,9 @@ class Stack:
 
     def size(self):
         return len(self.stack)
+
+    
+from datetime import datetime    
     
 def make_df(visited):
     keys = ['id', 'by', 'text', 'parent', 'time']
@@ -189,30 +207,32 @@ def make_df(visited):
     return filtered
     
 
+
 def get_comments(storyid):
     next_up = Stack()
     
-    site = requests.get(format_url(18344932)).json()
+    site = requests.get(format_url(storyid)).json()
     reverse_ids = site['kids'][::-1]
-    # Put all main comments in next_up stack
+    # put all the main comments into the next_up stack
     for i in reverse_ids:
         next_up.push(i)
     
-    # Initialize list for visited comments
+    # initialize list for visited comments
     visited = []
 
-    # Loop through next_up and continue adding child comments
+    # loop through next_up and continue adding child comments
     while not next_up.is_empty():
         # move the top comment to the visited list
         top = next_up.pop()
         visited.append(top)
-        # Retrieve the children of the comment I just popped 
+        # get the children of the comment we just popped 
         try:
             for kid in get_comment(top)['kids']:
                 next_up.push(kid)
-        # If the comment doesn't have kids, continue
+        # if the comment doesn't have any kids, just continue
         except KeyError:
             continue
             
     final_df = make_df(visited)
     return final_df
+

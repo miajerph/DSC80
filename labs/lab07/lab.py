@@ -11,7 +11,6 @@ import re
 # QUESTION 1
 # ---------------------------------------------------------------------
 
-
 def match_1(string):
     """
     DO NOT EDIT THE DOCSTRING!
@@ -30,12 +29,15 @@ def match_1(string):
     >>> match_1("1b[#d] _")
     True
     """
-    pattern = ...
-
+    pattern = r'^..[\[].{2}[\]]'
+     # ^.. matches any two characters at the start
+    # \[ matches the '[' character literally
+    # .{2} matches any two characters
+    # \] matches the ']' character literally
+    
     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_2(string):
     """
@@ -57,12 +59,14 @@ def match_2(string):
     >>> match_2("(858) 456-7890b")
     False
     """
-    pattern = ...
-
+    pattern = r'^\(858\)\s\d{3}-\d{4}$'
+    # ^\(858\) matches '(858)' at the start
+    # \s matches the space
+    # \d{3}-\d{4} matches three digits, a hyphen, and four digits
+    
     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_3(string):
     """
@@ -84,12 +88,13 @@ def match_3(string):
     >>> match_3(" adf!qe? ")
     False
     """
-    pattern = ...
+    pattern = r'^[\w\s?]{5,9}\?$'
+     # ^[\w\s?]{5,9} matches 5 to 9 alphanumeric, whitespace, or '?' characters at the start
+    # \?$ matches a '?' character at the end
 
     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_4(string):
     """
@@ -113,12 +118,17 @@ def match_4(string):
     >>> match_4("$!@$")
     False
     """
-    pattern = ...
+    pattern = r'^\$[^abc$]*\$(?=[aA]+[bB]+[cC]+$)[aAbBcC]*$'
+     # ^\$ matches a '$' at the start
+    # [^abc$]* matches any character except 'a', 'b', 'c', or '$' zero or more times
+    # \$ matches a '$' character literally
+    # (?=[aA]+[bB]+[cC]+$) is a lookahead to ensure the rest of the string has 'a's followed by 'b's followed by 'c's
+    # [aAbBcC]*$ matches any combination of 'a', 'A', 'b', 'B', 'c', or 'C' zero or more times at the end
 
+    
     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_5(string):
     """
@@ -132,12 +142,14 @@ def match_5(string):
     >>> match_5("dsc80+.py")
     False
     """
-    pattern = ...
-
+    pattern = r'^[\w]+\.(py|pyw)$'
+     # ^[\w]+ matches one or more word characters (letters, digits, underscores)
+    # \. matches a literal dot
+    # (py|pyw)$ matches 'py' or 'pyw' at the end of the string
+    
     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_6(string):
     """
@@ -153,12 +165,14 @@ def match_6(string):
     >>> match_6("ABCDEF_ABCD")
     False
     """
-    pattern = ...
-
+    pattern = r'^[a-z]+_[a-z]+$'
+    # ^[a-z]+ matches one or more lowercase letters at the start
+    # _ matches a literal underscore
+    # [a-z]+$ matches one or more lowercase letters at the end
+    
     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_7(string):
     """
@@ -172,13 +186,14 @@ def match_7(string):
     >>> match_7("_ncde")
     False
     """
-    pattern = ...
-
+    pattern = r'^_.+_$'
+     # ^_ matches an underscore at the start
+    # .+ matches one or more of any character (except newlines)
+    # _$ matches an underscore at the end
+    
     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
-
 
 def match_8(string):
     """
@@ -194,13 +209,12 @@ def match_8(string):
     >>> match_8("ASDJKL9380JKAL")
     True
     """
-    pattern = ...
+    pattern = r'^[^Oi1]+$'
+    # ^[^Oi1]+$ matches one or more characters that are not 'O', 'i', or '1'
 
-    # Do not edit following code
+     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
-
 
 def match_9(string):
     '''
@@ -218,12 +232,14 @@ def match_9(string):
     >>> match_9('TX-32-SAN-4491')
     False
     '''
-    pattern = ...
-
+    pattern = r'^(NY-\d{2}-[A-Z]{3}-\d{4}|CA-\d{2}-(SAN|LAX)-\d{4})$'
+    # ^(NY-\d{2}-[A-Z]{3}-\d{4}|[A-Z]{2}-\d{2}-(SAN|LAX)-\d{4})$ matches:
+    # - 'NY' followed by a hyphen, two digits, another hyphen, three uppercase letters, another hyphen, and four digits
+    # - OR a two-letter uppercase state code, a hyphen, two digits, a hyphen, 'SAN' or 'LAX', a hyphen, and four digits
+    
     # Do not edit following code
     prog = re.compile(pattern)
     return prog.search(string) is not None
-
 
 def match_10(string):
     '''
@@ -240,48 +256,150 @@ def match_10(string):
     ['bde']
     
     '''
-    ...
-
+    # Convert the string to lowercase
+    string = string.lower()
+    # Remove all non-alphanumeric characters and the letter 'a'
+    string = re.sub(r'[^0-9b-z]', '', string)
+    # Extract every non-overlapping three-character substring
+    return [string[i:i+3] for i in range(0, len(string), 3) if len(string[i:i+3]) == 3]
 
 # ---------------------------------------------------------------------
 # QUESTION 2
 # ---------------------------------------------------------------------
 
-
 def extract_personal(s):
-    ...
+    email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+    ssn_pattern = r'\b\d{3}-\d{2}-\d{4}\b'
+    bitcoin_pattern = r'\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b|\bbc1[a-zA-HJ-NP-Z0-9]{11,71}\b'
+    street_pattern = r'\b\d+\s[A-Za-z0-9\s.,]+(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Way|Ct|Court)\b'
+    
+    emails = re.findall(email_pattern, s)
+    ssns = re.findall(ssn_pattern, s)
+    bitcoins = re.findall(bitcoin_pattern, s)
+    streets = re.findall(street_pattern, s)
+    
+    return (emails, ssns, bitcoins, streets)
 
 
 # ---------------------------------------------------------------------
 # QUESTION 3
 # ---------------------------------------------------------------------
 
-
+from collections import Counter
 def tfidf_data(reviews_ser, review):
-    ...
-
+    words = re.findall(r'\b\w+\b', review.lower())
+    
+    word_counts = Counter(words)
+    
+    total_words = len(words)
+    
+    tf = {word: count / total_words for word, count in word_counts.items()}
+    
+    def df(word):
+        return reviews_ser.str.contains(r'\b{}\b'.format(re.escape(word)), case=False).sum()
+    
+    total_docs = len(reviews_ser)
+    
+    idf = {word: np.log(total_docs / df(word)) for word in word_counts}
+    
+    tfidf = {word: tf[word] * idf[word] for word in word_counts}
+    
+    df_tfidf = pd.DataFrame({
+        'cnt': word_counts,
+        'tf': tf,
+        'idf': idf,
+        'tfidf': tfidf
+    })
+    
+    return df_tfidf
 
 def relevant_word(out):
-    ...
+    best_word = out['tfidf'].idxmax()
+    return best_word
 
 
 # ---------------------------------------------------------------------
 # QUESTION 4
 # ---------------------------------------------------------------------
 
-
 def hashtag_list(tweet_text):
-    ...
+    def extract_hashtags(text):
+        return re.findall(r'#(\S+)', text)
+    
+    return tweet_text.apply(extract_hashtags)
 
 
 def most_common_hashtag(tweet_lists):
-    ...
-
+    all_hashtags = [hashtag for hashtags in tweet_lists for hashtag in hashtags]
+    
+    hashtag_freq = pd.Series(all_hashtags).value_counts()
+    
+    def find_most_common(hashtags):
+        if len(hashtags) == 0:
+            return pd.NA  # No hashtags in the tweet
+        elif len(hashtags) == 1:
+            return hashtags[0]  # Only one hashtag in the tweet
+        else:
+            common_hashtags = hashtag_freq.loc[hashtags]
+            return common_hashtags.idxmax()
+    
+    return tweet_lists.apply(find_most_common)
 
 # ---------------------------------------------------------------------
 # QUESTION 5
 # ---------------------------------------------------------------------
 
-
 def create_features(ira):
-    ...
+    def extract_hashtags(text):
+        return re.findall(r'#(\S+)', text)
+    
+    def most_common_hashtag(tweet_lists):
+        all_hashtags = [hashtag for hashtags in tweet_lists for hashtag in hashtags]
+        hashtag_freq = pd.Series(all_hashtags).value_counts()
+        
+        def find_most_common(hashtags):
+            if len(hashtags) == 0:
+                return pd.NA
+            elif len(hashtags) == 1:
+                return hashtags[0]
+            else:
+                common_hashtags = hashtag_freq.loc[hashtags]
+                return common_hashtags.idxmax()
+        
+        return tweet_lists.apply(find_most_common)
+    
+    def num_hashtags(hashtags):
+        return hashtags.apply(len)
+    
+    def num_tags(tweet_text):
+        def extract_tags(text):
+            return re.findall(r'@\w+', text)
+        return tweet_text.apply(lambda x: len(extract_tags(x)))
+    
+    def num_links(tweet_text):
+        def extract_links(text):
+            return re.findall(r'http[s]?://\S+', text)
+        return tweet_text.apply(lambda x: len(extract_links(x)))
+    
+    def is_retweet(tweet_text):
+        return tweet_text.apply(lambda x: x.strip().startswith("RT"))
+    
+    def clean_text(text):
+        text = re.sub(r'(RT\s+|@\w+|http[s]?://\S+|#\S+)', ' ', text)
+        text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text)
+        text = text.lower().strip()
+        text = re.sub(r'\s+', ' ', text)
+        return text
+    
+    hashtags = ira['text'].apply(extract_hashtags)
+    
+    ira_features = pd.DataFrame(index=ira.index)
+    
+    ira_features['num_hashtags'] = num_hashtags(hashtags)
+    ira_features['mc_hashtags'] = most_common_hashtag(hashtags)
+    ira_features['num_tags'] = num_tags(ira['text'])
+    ira_features['num_links'] = num_links(ira['text'])
+    ira_features['is_retweet'] = is_retweet(ira['text'])
+    ira_features['text'] = ira['text'].apply(clean_text)
+    
+    return ira_features[['text', 'num_hashtags', 'mc_hashtags', 'num_tags', 'num_links', 'is_retweet']]

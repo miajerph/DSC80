@@ -9,36 +9,44 @@ import datetime
 import plotly.express as px
 import plotly.io as pio
 
+
 # ---------------------------------------------------------------------
 # QUESTION 1
 # ---------------------------------------------------------------------
 
+# helpers for question 1
 
+def set_keys(d, titles):
+    for i in titles:
+        d[i] = None
+    
+
+def set_values(d, titles, df):
+    for i in titles:
+        assignment = i.lower()
+        if i == 'lab':
+            d[i] = [col for col in df.columns if assignment in col.lower() and col[-2:].isdigit()]
+        if i == 'project':
+            d[i] = [col for col in df.columns if assignment in col.lower() and len(col) == 9]
+        if i == 'midterm':
+            d[i] = [col for col in df.columns if assignment in col.lower() and len(col) == 7]
+        if i == 'final':
+            d[i] = [col for col in df.columns if assignment in col.lower() and len(col) == 5]
+        if i == 'disc':
+            d[i] = [col for col in df.columns if assignment in col.lower() and col[-2:].isdigit()]
+        if i == 'checkpoint':
+            d[i] = [col for col in df.columns if assignment in col.lower() and col[-2:].isdigit()]
+        
+    return d
+    
 def get_assignment_names(grades):
-    assignment_names = {
-        'lab': [],
-        'project': [],
-        'midterm': [],
-        'final': [],
-        'disc': [],
-        'checkpoint': []
-    }
+    names = {}
+    categories = ['lab', 'project', 'midterm', 'final', 'disc', 'checkpoint']
+    set_keys(names, categories)
+    final = set_values(names, categories, grades)
+    return final
     
-    for col in grades.columns.to_list():
-        if ('lab' in col.lower()) & (len(col)==5):
-            assignment_names['lab'].append(col)
-        elif ('project' in col.lower()) & (len(col)==9):
-            assignment_names['project'].append(col)
-        elif ('midterm' in col.lower()) & (len(col)==6):
-            assignment_names['midterm'].append(col)
-        elif ('final' in col.lower()) & (len(col)==5):
-            assignment_names['final'].append(col)
-        elif ('disc' in col.lower()) & (len(col)==12):
-            assignment_names['disc'].append(col)
-        elif ('checkpoint' in col.lower()) & (len(col)==22):
-            assignment_names['checkpoint'].append(col)
-    
-    return assignment_names
+
 
 # ---------------------------------------------------------------------
 # QUESTION 2
@@ -46,16 +54,11 @@ def get_assignment_names(grades):
 
 
 def projects_total(grades):
-    grades_copy = grades.copy()
-    grades_copy.fillna(0, inplace=True)
-    project_avg = 0.20 * (\
-    ((grades_copy['project01'] + grades_copy['project01_free_response']) / (grades_copy['project01 - Max Points'] + grades_copy['project01_free_response - Max Points'])) + \
-    ((grades_copy['project02'] + grades_copy['project02_free_response']) / (grades_copy['project02 - Max Points'] + grades_copy['project02_free_response - Max Points'])) + \
-    (grades_copy['project03'] / grades_copy['project03 - Max Points']) + \
-    (grades_copy['project04'] / grades_copy['project04 - Max Points']) + \
-    ((grades_copy['project05'] + grades_copy['project05_free_response']) / (grades_copy['project05 - Max Points'] + grades_copy['project05_free_response - Max Points'])))
-    return project_avg
-
+    proj_cols = [col for col in grades.columns if col.startswith('project') and 'Max Points' not in col and "checkpoint" not in col and "Lateness" not in col]
+    scores = grades[proj_cols].sum(numeric_only=True, axis=1)
+    maxes = [col for col in grades.columns if "Max Points" in col and "project" in col and "checkpoint" not in col]
+    possible_scores = grades[maxes].sum(numeric_only=True, axis=1)
+    return scores / possible_scores
 
 # ---------------------------------------------------------------------
 # QUESTION 3
@@ -63,20 +66,44 @@ def projects_total(grades):
 
 
 def lateness_penalty(col):
-    def to_multiplier(datestring):
-        hours, minutes, seconds = map(int, datestring.split(':'))
-        duration = datetime.timedelta(hours=hours, minutes=minutes, seconds=seconds)
-        if duration <= datetime.timedelta(days=0, hours=2, minutes=0):
-            return 1.0
-        elif duration <= datetime.timedelta(days=7, hours=0, minutes=0):
-            return 0.9
-        elif duration <= datetime.timedelta(days=14, hours=0, minutes=0):
-            return 0.7
-        else: 
-            return 0.4
-        
-    return col.apply(to_multiplier)
+    # given the column name of the lateness 
+    # 2 hr grace period means you can submit 2 hrs after og deadline and get full credit
+    # onwards from 2 hrs and up to/including 1 week, 10% penalty so 0.9 multiplier
+    # more than 1 week and up to/including 2 weeks, 30% penalty so 0.7 multiplier
+    # more than 2 weeks, 60% penalty so 0.4 multiplier 
+    
+    
+    # hours : minutes: seconds
+    penalties = []
+    for time in col:
+        # conditionals for each penalty cutoff
+        if time == '00:00:00':
+            penalties.append(1)
+            
+        # 2 hour grace period
+        elif int(time.split(':')[0]) < 2:
+            penalties.append(1)
+        elif int(time.split(':')[0]) == 2:
+            if int(time.split(':')[1]) > 0 or int(time.split(':')[2]) > 0:
+                penalties.append(0.9)
+                   
+        # 1 week penalty, 30%
+        elif int(time.split(':')[0]) < 168:
+            penalties.append(0.9)
+        elif int(time.split(':')[0]) == 168:
+            if int(time.split(':')[1]) > 0 or int(time.split(':')[2]) > 0:
+                   penalties.append(0.7)
+                   
+        # 2 week or more penalty, 60%
+        elif int(time.split(':')[0]) < 336:
+               penalties.append(0.7)
+        elif int(time.split(':')[0]) == 336:
+            if int(time.split(':')[1]) > 0 or int(time.split(':')[2]) > 0:
+                penalties.append(0.4)
+        elif int(time.split(':')[0]) > 336:
+                 penalties.append(0.4)
 
+    return pd.Series(penalties)
 
 # ---------------------------------------------------------------------
 # QUESTION 4
@@ -98,18 +125,29 @@ def process_labs(grades):
     df['lab09'] = (grades_copy['lab09'] / grades_copy['lab09 - Max Points']) * lateness_penalty(grades_copy['lab09 - Lateness (H:M:S)'])
     return df
 
-
 # ---------------------------------------------------------------------
 # QUESTION 5
 # ---------------------------------------------------------------------
 
 
 def lab_total(processed):
+    # processed is a dataframe returned by process_labs
+    # goal of this function is to drop the lowest lab then find the 
+    # lab average for each student in the form of a series
+    
+    # steps --> if each row is a student then i have to subtract the min from each row
+    # then i have to divide by (n - 1) labs (in this case 8 labs instead of 9)
+    
     num_labs = len(processed.columns)
-    processed['sum'] = processed.sum(axis=1)
-    processed['min_values'] = processed.min(axis=1)
-    processed['avgs'] = (processed['sum'] - processed['min_values']) / (num_labs-1)
-    return processed['avgs']
+    vals = []
+    
+    for i in range(processed.shape[0]):
+        row = (processed.iloc[i]).tolist()
+        row.remove(min(row))
+        drop_lowest = sum(row) / (num_labs - 1)
+        vals.append(drop_lowest)
+    return pd.Series(vals)
+    
 
 
 # ---------------------------------------------------------------------
@@ -118,23 +156,67 @@ def lab_total(processed):
 
 
 def total_points(grades):
-    grades_copy = grades.copy()
-    grades_copy.fillna(0, inplace=True)
-    df = pd.DataFrame()
-    df['projects'] = 0.3 * projects_total(grades_copy)
-    df['labs'] = 0.2 * lab_total(process_labs(grades_copy))
-    df['midterm'] = 0.15 * (grades_copy['Midterm'] / grades_copy['Midterm - Max Points'])
-    checkpoints_df = pd.DataFrame(columns=get_assignment_names(grades_copy)['checkpoint'])
-    for checkpoint in get_assignment_names(grades_copy)['checkpoint']:
-        checkpoints_df[checkpoint] = grades_copy[checkpoint] / grades_copy[checkpoint + ' - Max Points']        
-    df['checkpoints'] = 0.025 * checkpoints_df.mean(axis=1)
-    discussions_df = pd.DataFrame(columns=get_assignment_names(grades_copy)['disc'])
-    for discussion in get_assignment_names(grades_copy)['disc']:
-        discussions_df[discussion] = grades_copy[discussion] / grades_copy[discussion + ' - Max Points']
-    df['discussions'] = 0.025 * discussions_df.mean(axis=1)
-    df['final'] = 0.3 * grades_copy['Final'] / grades_copy['Final - Max Points']
-    df['total_points'] = df.sum(axis=1)
-    return df['total_points']
+    # labs 20%
+    # project 30%
+    # checkpoints 2.5%
+    # discussions 2.5%
+    # midterm exam 15%
+    # final 30%
+    # formula for this is like
+    # score/max x weight for each category 
+    # add them all together and that's it i think?
+    # only the labs has to be multiplied for lateness but i alr have a function for it
+    
+    categories = ['lab', 'project', 'midterm', 'final', 'disc', 'checkpoint']
+    # put weights in the same order as the assignments
+    weights = [0.2, 0.3, 0.15, 0.3, 0.025, 0.025]
+    # maybe do a dictionary 
+    
+    overall = get_assignment_names(grades)
+    sums_of_grades = np.zeros(grades.shape[0])
+    grades = grades.fillna(0)
+    
+    for i in range(len(categories)):
+        
+        if categories[i] == 'lab':
+            sums_of_grades += np.array((lab_total(process_labs(grades)) * weights[i]))
+            
+        if categories[i] == 'project':
+            sums_of_grades += np.array(projects_total(grades) * weights[i])
+                                   
+        if categories[i] == 'midterm':
+            # query this and return series of scores then multiply by weight[i]
+            # midterm / midterm max points
+            # return series of midterm scores
+            sums_of_grades += np.array((grades['Midterm'].values / grades['Midterm - Max Points']) * weights[i])
+  
+        if categories[i] == 'final':
+            sums_of_grades += np.array((grades['Final'].values / grades['Final - Max Points'].values) * weights[i])
+                                   
+        if categories[i] == 'disc':
+            # get discussion columns and max points columns
+            
+            disc_grades = get_assignment_names(grades)['disc']
+            disc_grades_df = grades[disc_grades].sum(numeric_only=True, axis=1)
+            
+            max_disc = [col for col in grades.columns if "Max Points" in col and "discussion" in col]
+            max_disc_df = grades[max_disc].sum(numeric_only=True, axis=1)
+            
+            disc_result = disc_grades_df.values / max_disc_df.values
+            sums_of_grades += np.array(disc_result * weights[i])
+           
+        if categories[i] == 'checkpoint':    
+            
+            # maybe my query is like contains checkpoint and does not contain lateness
+            # get the checkpoints in one df and then the maxes in another df
+            checkpt = get_assignment_names(grades)['checkpoint']
+            checkpt_df = grades[checkpt].sum(numeric_only=True, axis=1)
+            checkpt_max = [col for col in grades.columns if "Max Points" in col and "checkpoint" in col]
+            checkpt_max_df = grades[checkpt_max].sum(numeric_only=True, axis=1)
+            checkpt_result = checkpt_df.values / checkpt_max_df.values
+            sums_of_grades += np.array(checkpt_result * weights[i])
+                                   
+    return pd.Series(sums_of_grades)
 
 
 # ---------------------------------------------------------------------
@@ -149,26 +231,35 @@ def final_grades(total):
 def letter_proportions(total):
     fin_grades = final_grades(total)
     letter_counts = fin_grades.value_counts(normalize=True)
+    letter_counts = letter_counts.sort_values(ascending=False)
     return letter_counts
-
 
 # ---------------------------------------------------------------------
 # QUESTION 8
 # ---------------------------------------------------------------------
 
+def index_columns(df, indices):
+    cols = df.iloc[:, indices]
+    return cols
 
 def raw_redemption(final_breakdown, question_numbers):
-    question_scores = final_breakdown.iloc[:, question_numbers]
-    total_redemption_pts = question_scores.sum(axis=1)
-    max_redemption_pts = question_scores.sum(axis=1).max()
-    raw_redemption_score = total_redemption_pts / max_redemption_pts
-    question_scores.fillna(0, inplace=True)
-    scores = pd.DataFrame({'PID': final_breakdown['PID'], 'Raw Redemption Score': raw_redemption_score})
-    return scores
+    redemption_df = index_columns(final_breakdown, question_numbers)
+
+    numerator = redemption_df.sum(numeric_only=True, axis=1)
+    
+    denominator = index_columns(final_breakdown, question_numbers)
+    denominator = redemption_df.max().sum()
+    
+    result_df = pd.DataFrame(final_breakdown['PID'])
+    result_df['Raw Redemption Score'] = numerator / denominator
+    result_df['Raw Redemption Score'].fillna(0, inplace=True)
+    
+    return result_df
     
 def combine_grades(grades, raw_redemption_scores):
-    combined_grades = pd.merge(grades, raw_redemption_scores, on='PID', how='left')
-    return combined_grades
+    grades_copy = grades.copy(deep=True)
+#     x = grades_copy.merge(raw_redemption_scores, left_on='PID', right_on='PID', how='inner')
+    return grades_copy.merge(raw_redemption_scores, left_on='PID', right_on='PID', how='inner')
 
 
 # ---------------------------------------------------------------------
@@ -177,24 +268,53 @@ def combine_grades(grades, raw_redemption_scores):
 
 
 def z_score(ser):
-    mean = ser.mean()
-    std = ser.std(ddof=0)
-    z_scores = (ser - mean) / std
-    return z_scores
-    
-def add_post_redemption(grades_combined):
-    gc = grades_combined.copy()
-    gc.fillna(0, inplace=True)
-    gc['Midterm Score Pre-Redemption'] = gc['Midterm'].div(gc['Midterm - Max Points'])
-    gc['Midterm Z Score Pre-Redemption'] = z_score(gc['Midterm Score Pre-Redemption'])
-    gc['Redemption Z Score'] = z_score(gc['Raw Redemption Score'])
-    gc['Midterm Score Post-Redemption'] = gc['Midterm Score Pre-Redemption']
-    mean = gc['Midterm Score Pre-Redemption'].mean()
-    std = gc['Midterm Score Pre-Redemption'].std(ddof=0)
-    gc.loc[gc['Redemption Z Score'] > gc['Midterm Z Score Pre-Redemption'], 'Midterm Score Post-Redemption'] = (gc['Redemption Z Score'] * std) + mean 
-    gc.drop(columns=['Redemption Z Score', 'Midterm Z Score Pre-Redemption'], inplace=True)
-    return gc
+    # formula is (x - mean of x) / sd of x
+    sample_sd = np.std(ser, ddof=0)
+    sample_mean = np.mean(ser)
 
+    return (ser - sample_mean) / sample_sd
+
+
+# helper for post redemption
+
+def compare_scores(df):
+    # make a dataframe containing the z-scores of the final and pre-redemption scores
+    # iterate through this dataframe to determine which z score is higher
+    # if the final z-score is higher, plug the mean and sd to find the new score
+    # else keep pre-redemption score
+    # append all values to an array and convert to series
+    a = z_score(df['Midterm Score Pre-Redemption'])
+    b = z_score(df['Raw Redemption Score'])
+    data = {'Raw Redemption Score': b, 'Midterm Score Pre-Redemption': a}
+    c = pd.DataFrame(data, index = range(535))
+
+    final_redemption = []
+    midterm_mean = np.mean(df['Midterm Score Pre-Redemption'])
+    midterm_sd = np.std(df['Midterm Score Pre-Redemption'], ddof=0)
+    for i in range(df.shape[0]):
+        
+        if (c['Raw Redemption Score'].iloc[i] == 0) and (c['Raw Redemption Score'].iloc[i] == 0):
+            final_redemption.append(0)
+            
+        if c['Raw Redemption Score'].iloc[i] > c['Midterm Score Pre-Redemption'].iloc[i]:
+            new_score = (c['Raw Redemption Score'].iloc[i] * midterm_sd) + midterm_mean
+            final_redemption.append(new_score)
+            
+        else:
+            final_redemption.append(df['Midterm Score Pre-Redemption'].iloc[i])
+            
+    return pd.Series(final_redemption)
+
+def add_post_redemption(grades_combined):
+    g = grades_combined.copy(deep=True)
+    g['Midterm'].fillna(0, inplace=True)
+    g['Midterm Score Pre-Redemption'] = g['Midterm'] / g['Midterm - Max Points']
+    
+    g['Midterm Score Post-Redemption'] = compare_scores(g)
+    
+    g.loc[g['Midterm Score Post-Redemption'] > 1, 'Midterm Score Post-Redemption'] = 1
+
+    return g
 
 # ---------------------------------------------------------------------
 # QUESTION 10
@@ -202,37 +322,146 @@ def add_post_redemption(grades_combined):
 
 
 def total_points_post_redemption(grades_combined):
-    tp = total_points(grades_combined)
-    gc = add_post_redemption(grades_combined)
-    tp -= (0.15 * gc['Midterm Score Pre-Redemption'])
-    tp += (0.15 * gc['Midterm Score Post-Redemption'])
-    return tp
+#     old_grades = total_points(grades_combined) # returns series of grades
+    g = grades_combined.copy(deep=True) # make copy of df
+    post_r = add_post_redemption(g)
+    new_grades = redeem_total_grades(post_r)
+    return new_grades
+#     diffs = post_r['Midterm Score Post-Redemption'] - post_r['Midterm Score Pre-Redemption']
+#     diffs = diffs * 0.15
+#     return old_grades + diffs
         
 def proportion_improved(grades_combined):
-    gc = grades_combined.copy()
-    gc['tp_before'] = total_points(grades_combined)
-    gc['tp_after'] = total_points_post_redemption(grades_combined)
-    gc['improved'] = gc['tp_after'] > gc['tp_before']
-    return gc['improved'].mean() 
+    g = grades_combined.copy(deep=True)
+    post_r = total_points_post_redemption(g)
+    pre_r = total_points(g)
+    pre = final_grades(pre_r)
+    post = final_grades(post_r)
+    
+    grade_order = ['A', 'B', 'C', 'D', 'F']
 
+    grade_values = {'A': 5, 'B': 4, 'C': 3, 'D': 2, 'F': 1}
 
+    pre = pre.map(grade_values)
+    post = post.map(grade_values)
+    improved = (post > pre).sum()
+    total = len(pre)
+    prop = improved / total
+    return prop
 
+def redeem_total_grades(grades):
+    # labs 20%
+    # project 30%
+    # checkpoints 2.5%
+    # discussions 2.5%
+    # midterm exam 15%
+    # final 30%
+    # formula for this is like
+    # score/max x weight for each category 
+    # add them all together and that's it i think?
+    # only the labs has to be multiplied for lateness but i alr have a function for it
+    
+    categories = ['lab', 'project', 'midterm', 'final', 'disc', 'checkpoint']
+    # put weights in the same order as the assignments
+    weights = [0.2, 0.3, 0.15, 0.3, 0.025, 0.025]
+    # maybe do a dictionary 
+    
+    overall = get_assignment_names(grades)
+    sums_of_grades = np.zeros(grades.shape[0])
+    grades = grades.fillna(0)
+    
+    for i in range(len(categories)):
+        
+        if categories[i] == 'lab':
+            sums_of_grades += np.array((lab_total(process_labs(grades)) * weights[i]))
+            
+        if categories[i] == 'project':
+            sums_of_grades += np.array(projects_total(grades) * weights[i])
+                                   
+        if categories[i] == 'midterm':
+            # query this and return series of scores then multiply by weight[i]
+            # midterm / midterm max points
+            # return series of midterm scores
+            sums_of_grades += np.array(grades['Midterm Score Post-Redemption'].values * weights[i])
+#                 (grades['Midterm'].values / grades['Midterm - Max Points']) * weights[i])
+  
+        if categories[i] == 'final':
+            sums_of_grades += np.array((grades['Final'].values / grades['Final - Max Points'].values) * weights[i])
+                                   
+        if categories[i] == 'disc':
+            # get discussion columns and max points columns
+            
+            disc_grades = get_assignment_names(grades)['disc']
+            disc_grades_df = grades[disc_grades].sum(numeric_only=True, axis=1)
+            
+            max_disc = [col for col in grades.columns if "Max Points" in col and "discussion" in col]
+            max_disc_df = grades[max_disc].sum(numeric_only=True, axis=1)
+            
+            disc_result = disc_grades_df.values / max_disc_df.values
+            sums_of_grades += np.array(disc_result * weights[i])
+           
+        if categories[i] == 'checkpoint':    
+            
+            # maybe my query is like contains checkpoint and does not contain lateness
+            # get the checkpoints in one df and then the maxes in another df
+            checkpt = get_assignment_names(grades)['checkpoint']
+            checkpt_df = grades[checkpt].sum(numeric_only=True, axis=1)
+            checkpt_max = [col for col in grades.columns if "Max Points" in col and "checkpoint" in col]
+            checkpt_max_df = grades[checkpt_max].sum(numeric_only=True, axis=1)
+            checkpt_result = checkpt_df.values / checkpt_max_df.values
+            sums_of_grades += np.array(checkpt_result * weights[i])
+                                   
+    return pd.Series(sums_of_grades)
 # ---------------------------------------------------------------------
 # QUESTION 11
 # ---------------------------------------------------------------------
 
 
 def section_most_improved(grades_analysis):
-    ga = grades_analysis.copy()
-    ga['Improvement'] = ga['Letter Grade Post-Redemption'] < ga['Letter Grade Pre-Redemption']
-    ga = ga.groupby('Section')['Improvement'].mean().idxmax()
-    return ga
+    grade_order = ['A', 'B', 'C', 'D', 'F']
+    grade_values = {'A': 5, 'B': 4, 'C': 3, 'D': 2, 'F': 1}
+    proportions = []
+    num_sections = 30
+    section_names = np.array([f"{i:02d}" for i in range(1, 31)])
+    
+    for i in range(num_sections):
+        section = grades_analysis[grades_analysis['Section'] == ('A' + section_names[i])]
+        grades_pre = section['Letter Grade Pre-Redemption']
+        grades_post = section['Letter Grade Post-Redemption']
+        grades_pre = pd.Series(grades_pre.values)
+        grades_post = pd.Series(grades_post.values)
+        pre = grades_pre.map(grade_values)
+        post = grades_post.map(grade_values)
+        total = len(pre)
+        improved = (post > pre).sum()
+        proportion = improved / total
+        proportions.append(proportion)
+    return 'A' + section_names[proportions.index(max(proportions))]
     
 def top_sections(grades_analysis, t, n):
-    top_students = grades_analysis[grades_analysis['Final'] / grades_analysis['Final - Max Points'] >= t]
-    section_counts = top_students.groupby('Section').size()
-    qualified_sections = section_counts[section_counts >= n]
-    return np.array(sorted(qualified_sections.index))
+    # t is a float between 0 and 1
+    # t represents the score on the final exam
+    # n represents students
+    # at least n students 
+    # return array in alphanumeric order of sections
+    # where at least n students scored at least t on the final
+    
+    num_sections = len(grades_analysis['Section'].unique())
+    section_names = np.array([f"{i:02d}" for i in range(1, num_sections + 1)])
+    section_names_letters = ['A' + s for s in section_names]
+    meet_criteria = []
+    
+    for i in range(30):
+        section = grades_analysis[grades_analysis['Section'] == ('A' + section_names[i])]
+        series = section['Final'] / section['Final - Max Points']
+        min_t = (series >= t).sum()
+        if min_t >= n:
+            meet_criteria.append(True)
+        else:
+            meet_criteria.append(False)
+        
+    result = np.array([val for val, flag in zip(section_names_letters, meet_criteria) if flag])
+    return result
 
 
 # ---------------------------------------------------------------------

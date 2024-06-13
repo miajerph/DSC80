@@ -14,12 +14,16 @@ import numpy as np
 
 
 def read_linkedin_survey(dirname):
+    
+    target_cols  = ['first name', 'last name', 'current company', 'job title', 'email', 'university']    
     surveys = []
-    target_cols = ['first name', 'last name', 'current company', 'job title', 'email', 'university']
 
+    # edge case for if the path doesn't exist within the directory
     if not Path(dirname).is_dir():
         print(True)
         return
+    
+    # search through the directory and add files to list
     files = []
     for file_path in dirname.iterdir():
         files.append(file_path)
@@ -37,107 +41,114 @@ def read_linkedin_survey(dirname):
 
 
 def com_stats(df):
+
+    df = df.fillna('')
+    
+    # ohio programmers
     ohio_programmers = df[(df['university'].str.contains('Ohio', case=False, na=False)) & 
                                  (df['job title'].str.contains('Programmer', case=False, na=False))].shape[0]
     ohio = df[df['university'].str.contains('Ohio', case=False, na=False)].shape[0]
     ohio_programmers = ohio_programmers / ohio if ohio_programmers > 0 else 0
 
+    # engineers
     engineer_titles = df[df['job title'].str.endswith('Engineer', na=False)].shape[0]
 
+    # longest job name
     longest_title = df.loc[df['job title'].str.len().idxmax(), 'job title']
 
+    # number of jobs with manager in the name
     managers = df[df['job title'].str.contains('manager', case=False, na=False)].shape[0]
 
     return [ohio_programmers, engineer_titles, longest_title, managers]
-
-
 
 
 # ---------------------------------------------------------------------
 # QUESTION 2
 # ---------------------------------------------------------------------
 
+from functools import reduce
 
 def read_student_surveys(dirname):
-    from functools import reduce
     if not Path(dirname).is_dir():
         print(True)
         return
     files = []
-    for file_path in dirname.iterdir():
-        files.append(file_path)
-    favorites = []
-    for file in files:
-        fav = pd.read_csv(file)
-        favorites.append(fav)
-    combin = reduce(lambda left, right: pd.merge(left, right, on=['id'], how='outer'), favorites)
-    combin.set_index('id', drop=True, inplace=True)
-    return combin
+    favs = []
+    for file in dirname.iterdir():
+        files.append(file)
+#     files = files[1:]
+    for fav in files:
+        read = pd.read_csv(fav)
+        favs.append(read)
+
+    combined = reduce(lambda left, right: pd.merge(left,right,on=['id'], how='outer'), favs)
+    combined.index = combined['id']
+    combined = combined.drop(columns=['id'])
+    return combined
 
 
 def check_credit(df):
-    df_copy = df.copy()
-    df_copy = df.replace('(no genres listed)', np.NaN)
-    names = df_copy['name']
-    df_copy = df.drop(columns=['name'])
-    ec = (df_copy.isna()==False)
-    ec = ec.sum(axis=1)
-    class_ec = df_copy.count() / len(df_copy)
+    names = pd.read_csv('data/extra-credit-surveys/favorite1.csv')
+
+    df = df.replace('(no genres listed)', np.NaN)
+
+    # ec without participation
+#     df_clean = df.drop(columns=['id'])
+    ec = (df.isna()).sum(axis=1)
+    ser = pd.Series([5 if x >= 3 else 0 for x in ec])
+    
+    # find ec for participation 
+    class_ec = df.drop(columns=['name']).count() / len(df)
     num_points = (class_ec >= 0.9).sum()
-    result = pd.DataFrame({'name': names, 'ec': (ec+num_points)})
+    if num_points > 2:
+        num_points = 2
+
+    # combine the ec and class_ec into new df
+    result = pd.DataFrame({'name': names['name'], 'ec': (ser + num_points)})
     max_val = 7
-    result.loc[result['ec'] > max_val, 'ec']=max_val
+    result.loc[result['ec'] > max_val, 'ec'] = max_val
+    result.index = df.index
+    
     return result
-
-
 # ---------------------------------------------------------------------
 # QUESTION 3
 # ---------------------------------------------------------------------
 
 
 def most_popular_procedure(pets, procedure_history):
-    merged_df = pd.merge(pets, procedure_history, on= 'PetID', how='left')
-    procedure_counts = merged_df['ProcedureType'].value_counts()
-    most_popular_procedure_type = procedure_counts.idxmax()
-    return most_popular_procedure_type
+    pet_pro = pets.merge(procedure_history, left_on='PetID', right_on='PetID')
+    popular = pet_pro['ProcedureType'].value_counts().idxmax()
+    return popular 
 
-def pet_name_by_owner(owners, pets):
-    pets_copy = pets.copy()
-    pets_copy.rename(columns={'Name':'PetName'}, inplace=True)
-    merged_df = owners.merge(pets_copy, left_on='OwnerID', right_on='OwnerID')
-
-    def pet_agg(x):
-        if x.empty:
-            return ''
-        elif len(x)==1:
-            return x.iloc[0]
-        else:
-            return x.tolist()
-
-    pet_names_by_owner = merged_df.groupby('OwnerID')['PetName'].agg(pet_agg)
+def pet_aggregation(x):
+    if x.empty:
+        return ''  
+    elif len(x) == 1:
+        return x.iloc[0]  
+    else:
+        return x.tolist()
     
-    unique_owners = owners['OwnerID'].unique()
-    name = owners.drop_duplicates(subset='OwnerID').loc[owners['OwnerID'].isin(unique_owners), 'Name'].values
+def pet_name_by_owner(owners, pets):
+    pets.rename(columns={'Name': 'PetName'}, inplace=True)
+    owner_df = owners.merge(pets, left_on='OwnerID', right_on='OwnerID')
+    owner_df = owner_df.sort_values('OwnerID') # idk if this will make it wrong
+    series = owner_df.groupby('OwnerID')['PetName'].agg(pet_aggregation)
+    
+    # use the series to get corresponding names based on the IDs
+    # im not really sure how to change the index to a different column entirely 
+    owner_series = owner_df['OwnerID'].unique()
+    name = owner_df.drop_duplicates(subset='OwnerID').loc[owner_df['OwnerID'].isin(owner_series), 'Name'].values
 
-    pet_names_by_owner.index = name
-    return pet_names_by_owner
+    series.index = name
+    return series
 
 
 def total_cost_per_city(owners, pets, procedure_history, procedure_detail):
-    # Merge owners, pets, and procedure_history DataFrames to get pet procedures and owner cities
-    merged_df = pd.merge(pd.merge(owners, pets, on='OwnerID', how='left'), procedure_history, on='PetID', how='left')
-    
-    # Merge with procedure_detail DataFrame to get procedure costs
-    merged_df = pd.merge(merged_df, procedure_detail, on='ProcedureType', how='left')
-    
-    # Calculate total cost per procedure
-    #merged_df['TotalCost'] = merged_df['Price'] * merged_df['Quantity']
-    
-    # Group by city and sum total costs
-    total_cost_per_city = merged_df.groupby('City')['Price'].sum()
-    
-    return total_cost_per_city
-
+    city_owners = owners[['OwnerID', 'City']]
+    city_pets = city_owners.merge(pets, left_on='OwnerID', right_on='OwnerID')
+    city_history = city_pets.merge(procedure_history, left_on='PetID', right_on='PetID')
+    city_detail = pd.merge(city_history, procedure_detail, on=['ProcedureType', 'ProcedureSubCode'], how='inner')
+    return city_detail.groupby('City')['Price'].sum()
 
 # ---------------------------------------------------------------------
 # QUESTION 4
@@ -145,19 +156,20 @@ def total_cost_per_city(owners, pets, procedure_history, procedure_detail):
 
 
 def average_seller(sales):
-    average_sales = sales.groupby('Name')['Total'].mean()    
-    average_sales = average_sales.to_frame(name='Average Sales')
-    return average_sales
+    avg_seller = sales.pivot_table(index='Name', values='Total', aggfunc='mean')
+    avg_seller.rename(columns={'Total': 'Average Sales'}, inplace=True)
+    return avg_seller
 
 def product_name(sales):
-    product_sales = pd.pivot_table(sales, values='Total', index='Name', columns='Product', aggfunc='sum')
-    return product_sales
+    pivot_sales = sales.pivot_table('Total', index='Name', columns='Product')
+    return pivot_sales
 
 def count_product(sales):
     count_items = pd.pivot_table(sales, values='Total', index=['Product', 'Name'], columns='Date', aggfunc='count', fill_value=0)
     return count_items
 
 def total_by_month(sales):
-    sales['Month'] = pd.to_datetime(sales['Date']).dt.month_name()
-    total_monthly_sales = pd.pivot_table(sales, values='Total', index=['Name', 'Product'], columns='Month', aggfunc='sum', fill_value=0)
-    return total_monthly_sales
+    sales['Date'] = pd.to_datetime(sales['Date'])
+    sales['Month'] = sales['Date'].dt.strftime('%B')
+    pivot_month = sales.pivot_table(index=['Name', 'Product'], columns='Month', values='Total', aggfunc='sum', fill_value=0)
+    return pivot_month
